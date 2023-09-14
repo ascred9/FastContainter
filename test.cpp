@@ -21,6 +21,10 @@ int main()
     gr_std->SetName("gr_std");
     gr_std->SetTitle("Vector");
     gr_std->SetLineColor(kRed);
+    TGraph* gr_set = new TGraph(); 
+    gr_set->SetName("gr_set");
+    gr_set->SetTitle("Set");
+    gr_set->SetLineColor(kGreen);
     TGraph* gr_fast = new TGraph(); 
     gr_fast->SetName("gr_fast");
     gr_fast->SetTitle("FastContainer");
@@ -34,6 +38,10 @@ int main()
     gr_dens_std->SetName("gr_dens_std");
     gr_dens_std->SetTitle("Vector");
     gr_dens_std->SetLineColor(kRed);
+    TGraph* gr_dens_set = new TGraph(); 
+    gr_dens_set->SetName("gr_dens_set");
+    gr_dens_set->SetTitle("Set");
+    gr_dens_set->SetLineColor(kGreen);
     TGraph* gr_dens_fast = new TGraph(); 
     gr_dens_fast->SetName("gr_dens_fast");
     gr_dens_fast->SetTitle("FastContainer");
@@ -87,6 +95,26 @@ int main()
         auto durationStd = std::chrono::duration_cast<std::chrono::microseconds>(stopStd - startStd);
         std::cout << "Standart duration: " << durationStd.count() << ", muSec" << std::endl;
 
+        auto startSet = std::chrono::high_resolution_clock::now();
+        auto comp = [](const std::pair<int, double>& lhs, const std::pair<int, double>& rhs)
+        {
+            return lhs.second < rhs.second;
+        };
+        std::set<std::pair<int, double>, decltype(comp)> tmp_set (vec.begin(), vec.end(), comp);
+
+        std::vector<int> resSet;
+        resSet.reserve(testN);
+        for (const auto& elem: test)
+        {
+            auto it = tmp_set.lower_bound({0, elem});
+            auto pit = std::prev(it);
+            double res = it->second - elem < elem - pit->second ? it->first : pit->first;
+            resSet.push_back(res);
+        }
+        auto stopSet = std::chrono::high_resolution_clock::now();
+        auto durationSet = std::chrono::duration_cast<std::chrono::microseconds>(stopSet - startSet);
+        std::cout << "Standart duration: " << durationSet.count() << ", muSec" << std::endl;
+
         // TEST NEW SOLUTION
         std::vector<int> resF;
         resF.reserve(testN);
@@ -101,9 +129,11 @@ int main()
         std::cout << "New duration: " << durationF.count() << ", muSec" << std::endl;
 
         gr_std->AddPoint(N, durationStd.count());
+        gr_set->AddPoint(N, durationSet.count());
         gr_fast->AddPoint(N, durationF.count());
         gr_fast_with_init->AddPoint(N, durationF.count()+durationCreation.count());
         gr_dens_std->AddPoint(N, durationStd.count() * 1./testN);
+        gr_dens_set->AddPoint(N, durationSet.count() * 1./testN);
         gr_dens_fast->AddPoint(N, durationF.count() * 1./testN);
         gr_dens_fast_with_init->AddPoint(N, (durationF.count()+durationCreation.count()) * 1./testN);
 
@@ -133,6 +163,7 @@ int main()
     c->cd(1);
     TMultiGraph* mg = new TMultiGraph("mg", "Comparison");
     mg->Add(gr_std);
+    mg->Add(gr_set);
     mg->Add(gr_fast);
     mg->Add(gr_fast_with_init);
     mg->GetXaxis()->SetTitle("Number of values");
@@ -141,6 +172,7 @@ int main()
 
     TLegend* legend = new TLegend(0.7, 0.6, 0.95, 0.7);
     legend->AddEntry("gr_std");
+    legend->AddEntry("gr_set");
     legend->AddEntry("gr_fast");
     legend->AddEntry("gr_fast_with_init");
     legend->Draw();
@@ -149,6 +181,7 @@ int main()
     c->cd(2);
     TMultiGraph* mg_dens = new TMultiGraph("mg_dens", "Comparison");
     mg_dens->Add(gr_dens_std);
+    mg_dens->Add(gr_dens_set);
     mg_dens->Add(gr_dens_fast);
     mg_dens->Add(gr_dens_fast_with_init);
     mg_dens->GetXaxis()->SetTitle("Number of values");
