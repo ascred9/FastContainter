@@ -11,7 +11,7 @@ include_directories( ${ROOT_INCLUDE_DIRS} )
 
 set( CMAKE_CXX_STANDARD 17 )
 set(CMAKE_BUILD_TYPE Release)
-#set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 aux_source_directory( ./src sources)
 add_executable( ${exec_name} test.cpp ${sources})

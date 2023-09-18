@@ -5,3 +5,4 @@ But what if the solution can be found almsot by one step? For example, std::unor
 Unordered map can evaluate the value only for the exact input: it doesn't snap the key value to the closest one.
 FastContainer divide full range of values into several batches of fixed size to search out inside of this small batches. Finally, we have O(1*batch_size).
 ![test](test.png)
+![test](testRanges.png)

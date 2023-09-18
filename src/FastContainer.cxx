@@ -1,31 +1,38 @@
 #include "FastContainer.h"
 
 
-FastContainer::FastContainer(const std::vector<std::pair<int, double>>& input, double lowerBound, double upperBound):
+FastContainer::FastContainer(double lowerBound, double upperBound):
     _lowerBound(lowerBound),
     _upperBound(upperBound)
 {
     // check bounds
     if (upperBound <= lowerBound)
         throw std::invalid_argument("Incorrect upper and lower bounds");
+}
+
+void FastContainer::set(const std::vector<std::pair<int, double>>& input)
+{
+    _vec.clear();
+    _indices.clear();
 
     if (input.size() < _maxSize)
-        _deltaZ = upperBound - lowerBound;
+        _deltaZ = _upperBound - _lowerBound;
 
     // create ordered set. O(N*lnN)
-    // TODO: add epsilon of measurement
     auto comp = [](const std::pair<int, double>& lhs, const std::pair<int, double>& rhs)
     {
         return lhs.second < rhs.second;
     };
-        
-    std::set<std::pair<int, double>, decltype(comp)> tmp_set (input.begin(), input.end(), comp);
+    std::multiset<std::pair<int, double>, decltype(comp)> tmp_multiset(input.begin(), input.end(), comp);
+
+    // create value set. O(N) because tmp_multiset is already sorted
+    std::set<std::pair<int, double>, decltype(comp)> tmp_val_set(tmp_multiset.begin(), tmp_multiset.end(), comp);
 
     // find the batch step. O(N)
-    if (tmp_set.size() <= _maxSize)
-        _deltaZ = upperBound - lowerBound;
+    if (tmp_val_set.size() <= _maxSize)
+        _deltaZ = _upperBound - _lowerBound;
     else{
-        for (auto it = tmp_set.begin(); it != std::prev(tmp_set.end(), _maxSize-1); ++it)
+        for (auto it = tmp_val_set.begin(); it != std::prev(tmp_val_set.end(), _maxSize-1); ++it)
         {
             auto forward_it = std::next(it, _maxSize-1);
 
@@ -34,21 +41,25 @@ FastContainer::FastContainer(const std::vector<std::pair<int, double>>& input, d
                 _deltaZ = delta;
         }
         if (_deltaZ <= 0)
-            _deltaZ = upperBound - lowerBound;
+            _deltaZ = _upperBound - _lowerBound;
     }
 
     // check bounds against input
-    if (tmp_set.begin()->second < lowerBound || std::prev(tmp_set.end())->second > upperBound)
+    if (tmp_val_set.begin()->second < _lowerBound || std::prev(tmp_val_set.end())->second > _upperBound)
         throw std::invalid_argument("Input is out of range [lower, upper]"); 
 
     // fill every cell
-    _vec = std::vector<RangeStructure<double>>( std::ceil((upperBound - lowerBound) / _deltaZ) );
+    _vec = std::vector<FastStructure<double>>( std::ceil((_upperBound - _lowerBound) / _deltaZ) );
+    _indices.reserve(input.size());
 
     // fill new map by input values. O(N)
-    for (const auto& elem: tmp_set)
+    int last_index = 0;
+    for (const auto& elem: tmp_multiset)
     {
-        const int key = (elem.second - lowerBound) / _deltaZ;
-        _vec.at(key).push_back(elem.first, elem.second);
+        const int key = (elem.second - _lowerBound) / _deltaZ;
+        _vec.at(key).push_back(last_index, elem.second);
+        _indices.emplace_back(elem.first);
+        ++last_index;
     }
 
     // fill empty cells by indices to the nearest
@@ -69,7 +80,7 @@ FastContainer::FastContainer(const std::vector<std::pair<int, double>>& input, d
     }
 }
 
-const int FastContainer::getClosestId(double z) const
+const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterator> FastContainer::getClosestId(double z) const
 {
     int key = (z - _lowerBound) / _deltaZ;
 
@@ -80,22 +91,33 @@ const int FastContainer::getClosestId(double z) const
         const int lID = p.getLNearest();
         const int rID = p.getRNearest();
         if (lID > -1 && rID > -1)
-            return z - _vec.at(lID).getLast() < _vec.at(rID).getFirst() - z ?  _vec.at(lID).getLastID() : _vec.at(rID).getFirstID();
+        {
+            auto pos = z - _vec.at(lID).getLast() < _vec.at(rID).getFirst() - z ?  _vec.at(lID).getLastIDpos() : _vec.at(rID).getFirstIDpos();
+            return {_indices.begin() + pos.first, std::next(_indices.begin() + pos.second)};
+        }
         else if (lID > -1 && rID == -1)
-            return _vec.at(lID).getLastID();
+        {
+            auto pos = _vec.at(lID).getLastIDpos();
+            return {_indices.begin() + pos.first, std::next(_indices.begin() + pos.second)};
+        }
         else if (lID == -1 && rID > -1)
-            return _vec.at(rID).getFirstID();
+        {
+            auto pos = _vec.at(rID).getFirstIDpos();
+            return {_indices.begin() + pos.first, std::next(_indices.begin() + pos.second)};
+        }
     }
 
     if (z < p.getFirst())
     {
         const int lID = p.getLNearest();
-        return lID > -1 && z - _vec.at(lID).getLast() < p.getFirst() - z ?  _vec.at(lID).getLastID() : p.getFirstID();
+        auto pos = lID > -1 && z - _vec.at(lID).getLast() < p.getFirst() - z ?  _vec.at(lID).getLastIDpos() : p.getFirstIDpos();
+        return {_indices.begin() + pos.first, std::next(_indices.begin() + pos.second)};
     }
     else if (z > p.getLast())
     {
         const int rID = p.getRNearest();
-        return rID > -1 && z - p.getLast() > _vec.at(rID).getFirst() - z ? _vec.at(rID).getFirstID() : p.getLastID();
+        auto pos = rID > -1 && z - p.getLast() > _vec.at(rID).getFirst() - z ? _vec.at(rID).getFirstIDpos() : p.getLastIDpos();
+        return {_indices.begin() + pos.first, std::next(_indices.begin() + pos.second)};
     }
 
     auto values = p.getValues();
@@ -107,31 +129,89 @@ const int FastContainer::getClosestId(double z) const
     // TODO: lower_bound has O(lnN) for sorted elems.
     auto id = std::distance(values.begin(), it);
 
-    return p.getIndices().at(id);
+    auto pos = p.getIndices().at(id);
+    return {_indices.begin() + pos.first, std::next(_indices.begin() + pos.second)};
 }
 
-const std::vector<int> FastContainer::getIdsInRange(double lowerZ, double upperZ) const
+const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterator> FastContainer::getIdsInRange(double lowerZ, double upperZ) const
 {
-    std::vector<int> res;
-    std::vector<double> vals;
-
     int lowerKey = (lowerZ - _lowerBound) / _deltaZ;
     int upperKey = (upperZ - _lowerBound) / _deltaZ;
-    int lastKey = upperKey == _vec.size() ? upperKey : upperKey + 1;
 
-    for (int ikey = lowerKey; ikey < lastKey; ++ikey)
+    lowerKey = lowerKey < _vec.size() ? lowerKey : _vec.size() - 1;
+    lowerKey = lowerKey > -1 ? lowerKey : 0;
+    
+    upperKey = upperKey < _vec.size() ? upperKey : _vec.size() - 1;
+    upperKey = upperKey > -1 ? upperKey : 0;
+
+    int first = 0;
+    const auto& pLower = _vec.at(lowerKey);
+    if (pLower.getSize() == 0)
     {
-        const auto& p =_vec.at(ikey);
-        if (p.getSize() == 0)
-            continue;
-
-        res.insert(res.end(), p.getIndices().begin(), p.getIndices().begin() + p.getSize());
-        vals.insert(vals.end(), p.getValues().begin(), p.getValues().begin() + p.getSize());
+        if (pLower.getRNearest() == -1)
+            first = -1;
+        else
+        {
+            const auto& pR = _vec.at(pLower.getRNearest());
+            first = pR.getSize() > 0 ? pR.getFirstIDpos().first : -1;
+        }
+    }
+    else
+    {
+        auto lit = pLower.getValues().begin();
+        lit = std::lower_bound(pLower.getValues().begin(), pLower.getValues().begin()+pLower.getSize(), lowerZ);
+        auto lDist = std::distance(pLower.getValues().begin(), lit);
+        first = (pLower.getIndices().begin() + lDist)->first;
     }
 
-    auto lit = std::lower_bound(vals.begin(), vals.end(), lowerZ);
-    auto rit = std::upper_bound(vals.begin(), vals.end(), upperZ);
-    auto lDist = std::distance(vals.begin(), lit);
-    auto rDist = std::distance(rit, vals.end());
-    return {res.begin()+lDist, res.end()-rDist};
+    int last = 0;
+    const auto& pUpper = _vec.at(upperKey);
+    if (pLower.getSize() == 0)
+    {
+        if (pUpper.getLNearest() == -1)
+            last = -1;
+        else
+        {
+            const auto& pL = _vec.at(pUpper.getLNearest());
+            last = pL.getSize() > 0 ? pL.getLastIDpos().second : -1;
+        }
+    }
+    else
+    {
+        auto rit = pUpper.getValues().end();
+        rit = std::upper_bound(pUpper.getValues().begin(), pUpper.getValues().begin()+pUpper.getSize(), upperZ);
+        auto rDist = std::distance(rit, pUpper.getValues().end());
+        last = (pUpper.getIndices().end() - rDist)->second;
+    }
+
+    if (last >= first && first != -1 && last != -1)
+        return {_indices.begin() + first, std::next(_indices.begin() + last)};
+    else
+        return {_indices.end(), _indices.end()};
+}
+
+template <typename T>
+void FastStructure<T>::push_back(const int index, const T& value)
+{
+    int idx = -1;
+    for (int id = 0; id < _size; ++id)
+    {
+        if (value == _values[id])
+            idx = id;
+    }
+        
+    if (idx == -1)
+    {
+        idx = _size++;
+        _values[idx] = value;
+        _indices_pos[idx] = {index, index};
+    }
+    else
+    {
+        int key = _indices_pos[idx].second + 1;
+        _indices_pos[idx].second = index;
+    
+        if (key != _indices_pos[idx].second)
+            throw std::invalid_argument("Error in filling");
+    }
 }
