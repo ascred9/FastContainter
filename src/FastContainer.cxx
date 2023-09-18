@@ -161,8 +161,9 @@ const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterat
         auto lit = pLower.getValues().begin();
         lit = std::lower_bound(pLower.getValues().begin(), pLower.getValues().begin() + pLower.getSize(), lowerZ);
         auto lDist = std::distance(pLower.getValues().begin(), lit);
-        first = (pLower.getIndices().begin() + lDist)->first;
-        first = first != -1 ? first : pLower.getLastIDpos().second + 1;
+        first = lDist < pLower.getSize() ? (pLower.getIndices().begin() + lDist)->first : -1;
+        first = first != -1 ? first : 
+            (pLower.getLastIDpos().second + 1 < _indices.size() ? pLower.getLastIDpos().second + 1 : _indices.size());
     }
 
     int last = -1;
@@ -182,8 +183,10 @@ const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterat
         auto rit = pUpper.getValues().end();
         rit = std::upper_bound(pUpper.getValues().begin(), pUpper.getValues().begin()+pUpper.getSize(), upperZ);
         auto rDist = std::distance(pUpper.getValues().begin(), rit);
-        last = (pUpper.getIndices().begin() + rDist)->first;
-        last = last != -1 ? last : pUpper.getLastIDpos().second + 1;
+        last = rDist < pUpper.getSize() ? (pUpper.getIndices().begin() + rDist)->first : -1;
+        last = last != -1 ? last :
+            (pUpper.getLastIDpos().second + 1 < _indices.size() ? pUpper.getLastIDpos().second + 1: _indices.size());
+
     }
 
     if (first < last)

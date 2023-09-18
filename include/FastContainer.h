@@ -47,12 +47,12 @@ private:
   std::vector<FastStructure<double>> _vec;
   std::vector<int> _indices;
 public:
-    FastContainer() = default;
-    FastContainer(double lowerBound, double upperBound);
-    ~FastContainer() = default;
+  FastContainer() = default;
+  FastContainer(double lowerBound, double upperBound);
+  ~FastContainer() = default;
 
-    void set(const std::vector<std::pair<int, double>>& input);
-    const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterator> getClosestId(double z) const;
-    const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterator> getIdsInRange(double lowerZ, double upperZ) const;
-    inline bool isEmpty() const{return !_vec.size();};
+  void set(const std::vector<std::pair<int, double>>& input);
+  const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterator> getClosestId(double z) const;
+  const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterator> getIdsInRange(double lowerZ, double upperZ) const;
+  inline bool isEmpty() const{return !_vec.size();};
 };

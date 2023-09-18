@@ -380,11 +380,6 @@ void testRanges(bool verbose)
             std::for_each(resF.at(i).begin(), resF.at(i).end(), [](const auto& v){std::cout << v << " ";});
             std::cout << std::endl;
 
-            fc.getIdsInRange(low, up);
-
-            int l;
-            std::cin >> l;
-
             break;
         }
     }
