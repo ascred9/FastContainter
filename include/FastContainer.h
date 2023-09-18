@@ -12,7 +12,7 @@ class FastStructure
 private:
   static const int _maxsize = 5;
   int _size;
-  std::array<std::pair<int, int>, _maxsize> _indices_pos;
+  std::array<std::pair<int, int>, _maxsize> _indices_pos; // first and last index
   std::array<T, _maxsize> _values;
   int _lID = -1;
   int _rID = -1;

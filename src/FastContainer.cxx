@@ -144,48 +144,50 @@ const std::pair<std::vector<int>::const_iterator, std::vector<int>::const_iterat
     upperKey = upperKey < _vec.size() ? upperKey : _vec.size() - 1;
     upperKey = upperKey > -1 ? upperKey : 0;
 
-    int first = 0;
+    int first = -1;
     const auto& pLower = _vec.at(lowerKey);
     if (pLower.getSize() == 0)
     {
         if (pLower.getRNearest() == -1)
-            first = -1;
+            first = _indices.size();
         else
         {
             const auto& pR = _vec.at(pLower.getRNearest());
-            first = pR.getSize() > 0 ? pR.getFirstIDpos().first : -1;
+            first = pR.getSize() > 0 ? pR.getFirstIDpos().first : _indices.size();
         }
     }
     else
     {
         auto lit = pLower.getValues().begin();
-        lit = std::lower_bound(pLower.getValues().begin(), pLower.getValues().begin()+pLower.getSize(), lowerZ);
+        lit = std::lower_bound(pLower.getValues().begin(), pLower.getValues().begin() + pLower.getSize(), lowerZ);
         auto lDist = std::distance(pLower.getValues().begin(), lit);
         first = (pLower.getIndices().begin() + lDist)->first;
+        first = first != -1 ? first : pLower.getLastIDpos().second + 1;
     }
 
-    int last = 0;
+    int last = -1;
     const auto& pUpper = _vec.at(upperKey);
-    if (pLower.getSize() == 0)
+    if (pUpper.getSize() == 0)
     {
         if (pUpper.getLNearest() == -1)
-            last = -1;
+            last = 0;
         else
         {
             const auto& pL = _vec.at(pUpper.getLNearest());
-            last = pL.getSize() > 0 ? pL.getLastIDpos().second : -1;
+            last = pL.getSize() > 0 ? pL.getLastIDpos().second + 1 : 0;
         }
     }
     else
     {
         auto rit = pUpper.getValues().end();
         rit = std::upper_bound(pUpper.getValues().begin(), pUpper.getValues().begin()+pUpper.getSize(), upperZ);
-        auto rDist = std::distance(rit, pUpper.getValues().end());
-        last = (pUpper.getIndices().end() - rDist)->second;
+        auto rDist = std::distance(pUpper.getValues().begin(), rit);
+        last = (pUpper.getIndices().begin() + rDist)->first;
+        last = last != -1 ? last : pUpper.getLastIDpos().second + 1;
     }
 
-    if (last >= first && first != -1 && last != -1)
-        return {_indices.begin() + first, std::next(_indices.begin() + last)};
+    if (first < last)
+        return {_indices.begin() + first, _indices.begin() + last};
     else
         return {_indices.end(), _indices.end()};
 }

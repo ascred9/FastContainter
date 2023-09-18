@@ -207,10 +207,10 @@ void testRanges(bool verbose)
     gr_std->SetName("gr_std");
     gr_std->SetTitle("Vector");
     gr_std->SetLineColor(kRed);
-    //TGraph* gr_set = new TGraph(); 
-    //gr_set->SetName("gr_set");
-    //gr_set->SetTitle("Set");
-    //gr_set->SetLineColor(kGreen);
+    TGraph* gr_set = new TGraph(); 
+    gr_set->SetName("gr_multiset");
+    gr_set->SetTitle("Multiset");
+    gr_set->SetLineColor(kGreen);
     TGraph* gr_fast = new TGraph(); 
     gr_fast->SetName("gr_fast");
     gr_fast->SetTitle("FastContainer");
@@ -224,10 +224,10 @@ void testRanges(bool verbose)
     gr_dens_std->SetName("gr_dens_std");
     gr_dens_std->SetTitle("Vector");
     gr_dens_std->SetLineColor(kRed);
-    //TGraph* gr_dens_set = new TGraph(); 
-    //gr_dens_set->SetName("gr_dens_set");
-    //gr_dens_set->SetTitle("Set");
-    //gr_dens_set->SetLineColor(kGreen);
+    TGraph* gr_dens_set = new TGraph(); 
+    gr_dens_set->SetName("gr_dens_multiset");
+    gr_dens_set->SetTitle("Multiset");
+    gr_dens_set->SetLineColor(kGreen);
     TGraph* gr_dens_fast = new TGraph(); 
     gr_dens_fast->SetName("gr_dens_fast");
     gr_dens_fast->SetTitle("FastContainer");
@@ -275,25 +275,32 @@ void testRanges(bool verbose)
         auto durationStd = std::chrono::duration_cast<std::chrono::microseconds>(stopStd - startStd);
         if (verbose) std::cout << "Standart duration: " << durationStd.count() << ", muSec" << std::endl;
 
-        //auto startSet = std::chrono::high_resolution_clock::now();
-        //auto comp = [](const std::pair<int, double>& lhs, const std::pair<int, double>& rhs)
-        //{
-        //    return lhs.second < rhs.second;
-        //};
-        //std::set<std::pair<int, double>, decltype(comp)> tmp_set (vec.begin(), vec.end(), comp);
+        auto startSet = std::chrono::high_resolution_clock::now();
+        auto comp = [](const std::pair<int, double>& lhs, const std::pair<int, double>& rhs)
+        {
+            return lhs.second < rhs.second;
+        };
+        std::set<std::pair<int, double>, decltype(comp)> tmp_multiset (vec.begin(), vec.end(), comp);
 
-        //std::vector<int> resSet;
-        //resSet.reserve(testN);
-        //for (const auto& elem: test)
-        //{
-        //    auto it = tmp_set.lower_bound({0, elem});
-        //    auto pit = std::prev(it);
-        //    double res = it->second - elem < elem - pit->second ? it->first : pit->first;
-        //    resSet.push_back(res);
-        //}
-        //auto stopSet = std::chrono::high_resolution_clock::now();
-        //auto durationSet = std::chrono::duration_cast<std::chrono::microseconds>(stopSet - startSet);
-        //std::cout << "Standart duration: " << durationSet.count() << ", muSec" << std::endl;
+        std::vector<std::vector<int>> resSet;
+        resSet.reserve(testN);
+        for (int i=0; i<testN-1; ++i)
+        {
+            // simple
+            double low = std::min(test[i], test[i+1]);
+            double up = std::max(test[i], test[i+1]);
+
+            const auto lit = tmp_multiset.lower_bound({0, low});
+            const auto uit = tmp_multiset.upper_bound({0, up});
+            std::vector<int> tmp;
+            tmp.reserve(std::distance(lit, uit)+1);
+            std::for_each(lit, uit, [&tmp](const auto& v){ tmp.push_back(v.first); });
+            
+            resSet.push_back(tmp);
+        }
+        auto stopSet = std::chrono::high_resolution_clock::now();
+        auto durationSet = std::chrono::duration_cast<std::chrono::microseconds>(stopSet - startSet);
+        if (verbose) std::cout << "Standart duration: " << durationSet.count() << ", muSec" << std::endl;
 
         // TEST NEW SOLUTION
         // fill fast container
@@ -309,8 +316,8 @@ void testRanges(bool verbose)
             double low = std::min(test[i], test[i+1]);
             double up = std::max(test[i], test[i+1]);
             const auto& [fit, lit] = fc.getIdsInRange(low, up);
-            auto v = std::vector<int>(fit, lit);
-            resF.push_back(v);
+            auto tmp = std::vector<int>(fit, lit);
+            resF.push_back(tmp);
         }
         auto stopF = std::chrono::high_resolution_clock::now();
         auto durationF = std::chrono::duration_cast<std::chrono::microseconds>(stopF - startF);
@@ -322,11 +329,11 @@ void testRanges(bool verbose)
         }
 
         gr_std->AddPoint(N, durationStd.count());
-        //gr_set->AddPoint(N, durationSet.count());
+        gr_set->AddPoint(N, durationSet.count());
         gr_fast->AddPoint(N, durationF.count());
         gr_fast_with_init->AddPoint(N, durationCreation.count());
         gr_dens_std->AddPoint(N, durationStd.count() * 1./testN);
-        //gr_dens_set->AddPoint(N, durationSet.count() * 1./testN);
+        gr_dens_set->AddPoint(N, durationSet.count() * 1./testN);
         gr_dens_fast->AddPoint(N, durationF.count() * 1./testN);
         gr_dens_fast_with_init->AddPoint(N, durationCreation.count() * 1./testN);
 
@@ -341,22 +348,44 @@ void testRanges(bool verbose)
             std::cout << "Different sizes" << std::endl;
         for (int i = 0; i < testN-1; i++)
         {
+            bool flag1 = true;
+            bool flag2 = true;
             if (resStd.at(i).size() == resF.at(i).size())
             {
-                bool flag1 = std::any_of(resStd.at(i).begin(), resStd.at(i).end(),
+                flag1 = std::any_of(resStd.at(i).begin(), resStd.at(i).end(),
                     [&resF, i](const int v){return std::find(resF.at(i).begin(), resF.at(i).end(), v) == resF.at(i).end();});
                 
-                bool flag2 = std::any_of(resF.at(i).begin(), resF.at(i).end(),
+                flag2 = std::any_of(resF.at(i).begin(), resF.at(i).end(),
                     [&resStd, i](const int v){return std::find(resStd.at(i).begin(), resStd.at(i).end(), v) == resStd.at(i).end();});
 
                 if (!flag1 && !flag2)
                     continue;
+                
+                std::cout << i << "Error: " << flag1 << " " << flag2 << std::endl; 
             }
+            else
+                std::cout << i << " Different size: " << resStd.at(i).size() << " " << resF.at(i).size() << std::endl; 
 
-            //std::cout << "Opa: " << i << std::endl; 
-            //std::cout << test.at(i) << " \t" << resStd.at(i) << " " << vec.at(resStd.at(i)).second  << "\t" << test.at(i) - vec.at(resStd.at(i)).second << std::endl;
-            //std::cout << "\t\t" << resF.at(i) << " " << vec.at(resF.at(i)).second << "\t" << test.at(i) - vec.at(resF.at(i)).second << std::endl;
-            //std::cout << fc.getClosestId(test.at(i))[0] << std::endl;
+            double low = std::min(test[i], test[i+1]);
+            double up = std::max(test[i], test[i+1]);
+            std::cout << "lowerZ: " << low << " upperZ: " << up << std::endl;
+            std::cout << "Print input: ";
+            std::for_each(vec.begin(), vec.end(), [](const auto& v){std::cout << v.first << "-" << v.second << " ";});
+            std::cout << std::endl;
+            std::cout << "Print std: ";
+            std::for_each(resStd.at(i).begin(), resStd.at(i).end(), [](const auto& v){std::cout << v << " ";});
+            std::cout << std::endl;
+            
+            std::cout << "Print fast: ";
+            std::for_each(resF.at(i).begin(), resF.at(i).end(), [](const auto& v){std::cout << v << " ";});
+            std::cout << std::endl;
+
+            fc.getIdsInRange(low, up);
+
+            int l;
+            std::cin >> l;
+
+            break;
         }
     }
 
@@ -368,7 +397,7 @@ void testRanges(bool verbose)
     c->cd(1);
     TMultiGraph* mg = new TMultiGraph("mg", "Comparison getRange");
     mg->Add(gr_std);
-    //mg->Add(gr_set);
+    mg->Add(gr_set);
     mg->Add(gr_fast);
     mg->Add(gr_fast_with_init);
     mg->GetXaxis()->SetTitle("Number of values");
@@ -377,7 +406,7 @@ void testRanges(bool verbose)
 
     TLegend* legend = new TLegend(0.7, 0.6, 0.95, 0.7);
     legend->AddEntry("gr_std");
-    //legend->AddEntry("gr_set");
+    legend->AddEntry("gr_multiset");
     legend->AddEntry("gr_fast");
     legend->AddEntry("gr_fast_with_init");
     legend->Draw();
@@ -386,7 +415,7 @@ void testRanges(bool verbose)
     c->cd(2);
     TMultiGraph* mg_dens = new TMultiGraph("mg_dens", "Comparison getRange, average time per step");
     mg_dens->Add(gr_dens_std);
-    //mg_dens->Add(gr_dens_set);
+    mg_dens->Add(gr_dens_set);
     mg_dens->Add(gr_dens_fast);
     mg_dens->Add(gr_dens_fast_with_init);
     mg_dens->GetXaxis()->SetTitle("Number of values");
@@ -399,6 +428,6 @@ void testRanges(bool verbose)
 int main()
 {
     testNearest(false);
-    testRanges(true);
+    testRanges(false);
     return 0;
 }
